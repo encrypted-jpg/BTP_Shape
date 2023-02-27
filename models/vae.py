@@ -165,7 +165,7 @@ class VAE(nn.Module):
         coarseChamferLoss = self.chamfer(coarse, x)
         fineChamferLoss = self.chamfer(fine, x)
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        return coarseChamferLoss + fineChamferLoss + KLD
+        return coarseChamferLoss + fineChamferLoss + KLD, coarseChamferLoss, fineChamferLoss, KLD
     
     def generate(self, x):
         return self.forward(x)[1]

@@ -105,6 +105,7 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
             "kld_loss": val_kld_loss,
             "optimizer_state_dict": optimizer.state_dict()
             }, lastSavePath)
+        print("[+] Last Model saved")
 
 def test(model, testLoader, testOut, lr, save):
     if not os.path.exists(testOut):
@@ -169,9 +170,9 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
-    parser.add_argument("--resume", type=bool, default=False, help="Resume training")
+    parser.add_argument("--resume", action="store_true", help="Resume training")
     parser.add_argument("--model", type=str, default="bestModel.pth", help="Path to model")
-    parser.add_argument("--test", type=bool, default=False, help="Test model")
+    parser.add_argument("--test", action="store_true", help="Test model")
     parser.add_argument("--testSave", type=bool, default=False, help="Save test output")
     args = parser.parse_args()
     

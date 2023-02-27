@@ -87,10 +87,24 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
 
         if val_loss < minLoss:
             minLoss = val_loss
-            torch.save(model.state_dict(), bestSavePath)
+            torch.save({
+            "model_state_dict": model.state_dict(),
+            "epoch": epoch,
+            "loss": val_loss,
+            "chamfer_loss": val_chamfer_loss,
+            "kld_loss": val_kld_loss,
+            "optimizer_state_dict": optimizer.state_dict()
+            }, bestSavePath)
             print("[+] Best Model saved")
         
-        torch.save(model.state_dict(), lastSavePath)
+        torch.save({
+            "model_state_dict": model.state_dict(),
+            "epoch": epoch,
+            "loss": val_loss,
+            "chamfer_loss": val_chamfer_loss,
+            "kld_loss": val_kld_loss,
+            "optimizer_state_dict": optimizer.state_dict()
+            }, lastSavePath)
 
 def test(model, testLoader, testOut, lr, save):
     if not os.path.exists(testOut):
@@ -134,6 +148,16 @@ def generate(model, count, genFolder):
         out = out.squeeze().detach().cpu().numpy()
         save_pcd(out, os.path.join(genFolder, "gen_{}.pcd".format(i)))
 
+def load_model(model, path):
+    print("[+] Loading Model from: {}".format(path))
+    checkpoint = torch.load(path)
+    try:
+        model.load_state_dict(checkpoint["model_state_dict"])
+        print("[+] Model Statistics - Epoch: {}, Loss: {}, Chamfer Loss: {}, KLD Loss: {}".format(checkpoint["epoch"], checkpoint["loss"], checkpoint["chamfer_loss"], checkpoint["kld_loss"]))
+    except:
+        model.load_state_dict(checkpoint)
+    return model
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -172,8 +196,7 @@ if __name__ == "__main__":
     model = getModel()
 
     if resume:
-        print("[+] Loading Model")
-        model.load_state_dict(torch.load(modelPath))
+        model = load_model(model, modelPath)
     
     print(model)
     
@@ -187,7 +210,7 @@ if __name__ == "__main__":
     test(model, testLoader, testOut, lr=LR, save=testSave)
 
     # Load Model
-    model.load_state_dict(torch.load(bestSavePath))
+    model = load_model(model, bestSavePath)
     
     print("[+] Testing Model with best model")
     test(model, testLoader, testOut, lr=LR, save=testSave)

@@ -1,3 +1,9 @@
 torch
-python-open3d
+open3d-python
+open3d
 numpy
+argparse
+matplotlib
+timm
+tqdm
+Ninja

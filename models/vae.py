@@ -46,7 +46,7 @@ class Decoder(nn.Module):
 
         self.grid_size = 4
         self.grid_scale = 0.05
-        self.num_coarse = 1024
+        self.num_coarse = 403
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.__dict__.update(kwargs)  # to update args, num_coarse, grid_size, grid_scale
 
@@ -65,7 +65,7 @@ class Decoder(nn.Module):
             nn.Linear(1024, self.num_coarse * 3))
 
         self.folding2 = nn.Sequential(
-            nn.Conv1d(1024+3, 512, 1),
+            nn.Conv1d(1024+2+3, 512, 1),
             # nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Conv1d(512, 512, 1),
@@ -114,15 +114,14 @@ class Decoder(nn.Module):
         coarse = self.folding1(feature)
         coarse = coarse.view(-1, self.num_coarse, 3)
 
-        # grid = self.build_grid(x.shape[0])
-        # grid_feat = grid.repeat(1, self.num_coarse, 1)
+        grid = self.build_grid(feature.shape[0])
+        grid_feat = grid.repeat(1, self.num_coarse, 1)
 
         point_feat = self.tile(self.expand_dims(coarse, 2), [1, 1, self.grid_size ** 2, 1])
         point_feat = point_feat.view([-1, self.num_fine, 3])
 
         global_feat = self.tile(self.expand_dims(feature, 1), [1, self.num_fine, 1])
-        feat = torch.cat([point_feat, global_feat], dim=2)
-        # feat = torch.cat([grid_feat, point_feat, global_feat], dim=2)
+        feat = torch.cat([grid_feat, point_feat, global_feat], dim=2)
 
         center = self.tile(self.expand_dims(coarse, 2), [1, 1, self.grid_size ** 2, 1])
         center = center.view([-1, self.num_fine, 3])

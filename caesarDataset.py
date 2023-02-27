@@ -30,13 +30,13 @@ class CaesarDataset(Dataset):
                 |-- *-[1-8].pcd
     Use the json file to get the list of files to be used for training, testing and validation.
     """
-    def __init__(self, folder, jsonFile, partition="train", transform=None):
+    def __init__(self, folder, jsonFile, partition="train", seeds=8, transform=None):
         self.folder = folder
         self.transform = transform
         self.partial = []
         self.gts = []
         self.labels = []
-        self.seeds = [1, 2, 3, 4, 5, 6, 7, 8]
+        self.seeds = list(range(1, seeds + 1))
         count = 1
         with open(os.path.join(folder, jsonFile), 'r') as f:
             data = json.load(f)

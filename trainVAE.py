@@ -34,13 +34,18 @@ def dataLoaders(folder, json, batch_size):
 
 def getModel(modelName):
     modelName = modelName.lower()
+    lossWeights = [1, 1, 1]
     if modelName == "vae":
         model = VAE()
+        lossWeights = [2, 5, 2]
     elif modelName == "sphericalvae":
         model = SphericalVAE()
+    elif modelName == "foldingvae":
+        model = FoldingVAE(6449)
+        lossWeights = [1, 1, 1]
     else:
         raise Exception("[-] Model not found!")
-    return model
+    return model, lossWeights
 
 def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath, lossWeights=[1, 1, 1]):
     print("[+] Training the model...")
@@ -173,7 +178,7 @@ if __name__ == "__main__":
     parser.add_argument("--genFolder", type=str, default="gen", help="Path to generated files")
     parser.add_argument("--testOut", type=str, default="testOut", help="Path to test output")
     parser.add_argument("--savePath", type=str, default=".", help="Path to save model")
-    parser.add_argument("--batch_size", type=int, default=16, help="Batch size")
+    parser.add_argument("--batch_size", type=int, default=1, help="Batch size")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--resume", action="store_true", help="Resume training")
@@ -196,13 +201,11 @@ if __name__ == "__main__":
     test = args.test
     testSave = args.testSave
 
-    lossWeights = [2, 5, 2]
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     trainLoader, testLoader, valLoader = dataLoaders(folder, json, batch_size=BATCH_SIZE)
     
-    model = getModel("vae")
+    model, lossWeights = getModel("foldingvae")
 
     if resume or test:
         model = load_model(model, modelPath)
@@ -225,4 +228,3 @@ if __name__ == "__main__":
     print("[+] Testing Model with best model")
     testModel(model, testLoader, testOut, lr=LR, save=testSave, lossWeights=lossWeights)
     
-

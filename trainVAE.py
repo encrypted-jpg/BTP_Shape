@@ -7,7 +7,7 @@ import os
 import open3d as o3d
 import argparse
 import json
-from models.vae import VAE
+from models import *
 from caesarDataset import CaesarDataset
 from tqdm import tqdm
 import time
@@ -18,6 +18,8 @@ def save_pcd(points, filename):
     pcd.points = o3d.utility.Vector3dVector(points)
     o3d.io.write_point_cloud(filename, pcd)
 
+def count_parameters(model): 
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def dataLoaders(folder, json, batch_size):
     print("[+] Loading the data...")
@@ -30,14 +32,20 @@ def dataLoaders(folder, json, batch_size):
     return trainLoader, testLoader, valLoader
 
 
-def getModel():
-    model = VAE()
+def getModel(modelName):
+    modelName = modelName.lower()
+    if modelName == "vae":
+        model = VAE()
+    elif modelName == "sphericalvae":
+        model = SphericalVAE()
+    else:
+        raise Exception("[-] Model not found!")
     return model
 
-def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath):
+def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath, lossWeights=[1, 1, 1]):
     print("[+] Training the model...")
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     model.to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     minLoss = 1e10
     for epoch in range(epochs):
         model.train()
@@ -51,7 +59,7 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
             gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
             optimizer.zero_grad()
             coarse, fine, mu, log_var = model(gt)
-            loss, closs, floss, kld = model.loss_function(gt, coarse, fine, mu, log_var)
+            loss, floss, kld = model.loss_function(gt, coarse, fine, mu, log_var, weight=lossWeights)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -75,7 +83,7 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
                 gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
                 optimizer.zero_grad()
                 coarse, fine, mu, log_var = model(gt)
-                loss, closs, floss, kld = model.loss_function(gt, coarse, fine, mu, log_var)
+                loss, floss, kld = model.loss_function(gt, coarse, fine, mu, log_var, weight=lossWeights)
                 val_loss += loss.item()
                 val_chamfer_loss += floss.item()
                 val_kld_loss += kld.item()
@@ -93,7 +101,6 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
             "loss": val_loss,
             "chamfer_loss": val_chamfer_loss,
             "kld_loss": val_kld_loss,
-            "optimizer_state_dict": optimizer.state_dict()
             }, bestSavePath)
             print("[+] Best Model saved")
         
@@ -103,11 +110,10 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
             "loss": val_loss,
             "chamfer_loss": val_chamfer_loss,
             "kld_loss": val_kld_loss,
-            "optimizer_state_dict": optimizer.state_dict()
             }, lastSavePath)
         print("[+] Last Model saved")
 
-def test(model, testLoader, testOut, lr, save):
+def testModel(model, testLoader, testOut, lr, save, lossWeights=[1, 1, 1]):
     if not os.path.exists(testOut):
         os.makedirs(testOut)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -123,7 +129,7 @@ def test(model, testLoader, testOut, lr, save):
             gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
             optimizer.zero_grad()
             coarse, fine, mu, log_var = model(gt)
-            loss, closs, floss, kld = model.loss_function(gt, coarse, fine, mu, log_var)
+            loss, floss, kld = model.loss_function(gt, coarse, fine, mu, log_var)
             test_loss += loss.item()
             test_chamfer_loss += floss.item()
             test_kld_loss += kld.item()
@@ -167,13 +173,13 @@ if __name__ == "__main__":
     parser.add_argument("--genFolder", type=str, default="gen", help="Path to generated files")
     parser.add_argument("--testOut", type=str, default="testOut", help="Path to test output")
     parser.add_argument("--savePath", type=str, default=".", help="Path to save model")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
+    parser.add_argument("--batch_size", type=int, default=16, help="Batch size")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--resume", action="store_true", help="Resume training")
     parser.add_argument("--model", type=str, default="bestModel.pth", help="Path to model")
     parser.add_argument("--test", action="store_true", help="Test model")
-    parser.add_argument("--testSave", type=bool, default=False, help="Save test output")
+    parser.add_argument("--testSave", action="store_true", help="Save test output")
     args = parser.parse_args()
     
     folder = args.folder
@@ -190,30 +196,33 @@ if __name__ == "__main__":
     test = args.test
     testSave = args.testSave
 
+    lossWeights = [2, 5, 2]
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     trainLoader, testLoader, valLoader = dataLoaders(folder, json, batch_size=BATCH_SIZE)
     
-    model = getModel()
+    model = getModel("vae")
 
-    if resume:
+    if resume or test:
         model = load_model(model, modelPath)
     
     print(model)
+    print("[+] Total Number of Parameters: {}".format(count_parameters(model)))
     
     if test:
-        test(model, testLoader, testOut, lr=LR, save=testSave)
+        testModel(model, testLoader, testOut, lr=LR, save=testSave, lossWeights=lossWeights)
         exit()
 
-    train(model, trainLoader, valLoader, epochs=EPOCHS, lr=LR, bestSavePath=bestSavePath, lastSavePath=lastSavePath)
+    train(model, trainLoader, valLoader, epochs=EPOCHS, lr=LR, bestSavePath=bestSavePath, lastSavePath=lastSavePath, lossWeights=lossWeights)
     
     print("[+] Testing Model")
-    test(model, testLoader, testOut, lr=LR, save=testSave)
+    testModel(model, testLoader, testOut, lr=LR, save=testSave, lossWeights=lossWeights)
 
     # Load Model
     model = load_model(model, bestSavePath)
     
     print("[+] Testing Model with best model")
-    test(model, testLoader, testOut, lr=LR, save=testSave)
+    testModel(model, testLoader, testOut, lr=LR, save=testSave, lossWeights=lossWeights)
     
 

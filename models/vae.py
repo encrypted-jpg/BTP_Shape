@@ -1,9 +1,7 @@
-import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-import open3d as o3d
 import itertools
 from extensions.chamfer_dist import ChamferDistanceL1
 
@@ -161,11 +159,12 @@ class VAE(nn.Module):
         coarse, fine = self.decoder(z)
         return [coarse, fine, mu, logvar]
     
-    def loss_function(self, x, coarse, fine, mu, logvar):
+    def loss_function(self, x, coarse, fine, mu, logvar, weight=[1, 1, 1]):
         coarseChamferLoss = self.chamfer(coarse, x)
         fineChamferLoss = self.chamfer(fine, x)
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        return coarseChamferLoss + fineChamferLoss + KLD, coarseChamferLoss, fineChamferLoss, KLD
+        cw, fw, kw = weight
+        return cw * coarseChamferLoss + fw * fineChamferLoss + kw * KLD, fineChamferLoss, KLD
     
     def generate(self, x):
         return self.forward(x)[1]

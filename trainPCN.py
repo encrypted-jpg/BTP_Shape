@@ -14,7 +14,7 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm
 import time
 import datetime
-from visual import plot_pcd_one_view
+from utils.visual import plot_pcd_one_view
 import random
 
 def make_dir(dir_path):

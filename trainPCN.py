@@ -88,9 +88,9 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
     val_step = 0
     chamfer = ChamferDistanceL1()
     for epoch in range(epochs):
-        if train_step < 10000:
+        if train_step < 5000:
             alpha = 0.01
-        elif train_step < 20000:
+        elif train_step < 10000:
             alpha = 0.1
         elif train_step < 50000:
             alpha = 0.5

@@ -7,3 +7,4 @@ matplotlib
 timm
 tqdm
 Ninja
+tensorboardX

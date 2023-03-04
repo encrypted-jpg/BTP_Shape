@@ -3,6 +3,8 @@ import open3d as o3d
 import numpy as np
 import torch
 from tqdm import tqdm
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from extensions.chamfer_dist import ChamferDistanceL1
 import time
 

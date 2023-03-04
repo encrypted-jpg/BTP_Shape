@@ -9,6 +9,7 @@ import argparse
 import json
 from models import *
 from caesarDataset import CaesarDataset
+from dfaustDataset import DFaustDataset
 from extensions.chamfer_dist import ChamferDistanceL1
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -62,9 +63,14 @@ def count_parameters(model):
 
 def dataLoaders(folder, json, batch_size):
     print("[+] Loading the data...")
-    trainDataset = CaesarDataset(folder, json, partition="train", seeds=1)
-    testDataset = CaesarDataset(folder, json, partition="test", seeds=1)
-    valDataset = CaesarDataset(folder, json, partition="val", seeds=1)
+    if "caesar" in folder.lower():
+        trainDataset = CaesarDataset(folder, json, partition="train", seeds=1)
+        testDataset = CaesarDataset(folder, json, partition="test", seeds=1)
+        valDataset = CaesarDataset(folder, json, partition="val", seeds=1)
+    elif "d-faust" in folder.lower():
+        trainDataset = DFaustDataset(folder, json, partition="train")
+        testDataset = DFaustDataset(folder, json, partition="test")
+        valDataset = DFaustDataset(folder, json, partition="val")
     trainLoader = DataLoader(trainDataset, batch_size=batch_size, shuffle=True)
     testLoader = DataLoader(testDataset, batch_size=1, shuffle=True)
     valLoader = DataLoader(valDataset, batch_size=batch_size, shuffle=True)
@@ -228,7 +234,7 @@ def load_model(model, path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--folder", type=str, default="caesar-fitted-meshes-pcd", help="Path to dataset")
+    parser.add_argument("--folder", type=str, default="D-Faust", help="Path to dataset")
     parser.add_argument("--json", type=str, default="data_subset.json", help="Path to json file")
     parser.add_argument("--genFolder", type=str, default="gen", help="Path to generated files")
     parser.add_argument("--testOut", type=str, default="testOut", help="Path to test output")

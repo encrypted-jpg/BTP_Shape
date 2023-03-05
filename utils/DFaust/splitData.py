@@ -83,15 +83,15 @@ def createAllJSON():
         for cat in tqdm(os.listdir(os.path.join(folder, "train", "complete"))):
             files = os.listdir(os.path.join(folder, "train", "complete", cat))
             for f in files:
-                data["train"].append(os.path.join(folder, "train", "*", cat, f))
+                data["train"].append(os.path.join(folder, "train", "*", cat, f).replace("\\", "/"))
         for cat in tqdm(os.listdir(os.path.join(folder, "test", "complete"))):
             files = os.listdir(os.path.join(folder, "test", "complete", cat))
             for f in files:
-                data["test"].append(os.path.join(folder, "test", "*", cat, f))
+                data["test"].append(os.path.join(folder, "test", "*", cat, f).replace("\\", "/"))
         for cat in tqdm(os.listdir(os.path.join(folder, "val", "complete"))):
             files = os.listdir(os.path.join(folder, "val", "complete", cat))
             for f in files:
-                data["val"].append(os.path.join(folder, "val", "*", cat, f))
+                data["val"].append(os.path.join(folder, "val", "*", cat, f).replace("\\", "/"))
     with open(jsonFile, "w") as f:
         json.dump(data, f, indent=4)
 
@@ -107,15 +107,15 @@ def createSepJSON(folder):
     for cat in tqdm(os.listdir(os.path.join(folder, "train", "complete"))):
         files = os.listdir(os.path.join(folder, "train", "complete", cat))
         for f in files:
-            data["train"].append(os.path.join(folder, "train", "*", cat, f))
+            data["train"].append(os.path.join(folder, "train", "*", cat, f).replace("\\", "/"))
     for cat in tqdm(os.listdir(os.path.join(folder, "test", "complete"))):
         files = os.listdir(os.path.join(folder, "test", "complete", cat))
         for f in files:
-            data["test"].append(os.path.join(folder, "test", "*", cat, f))
+            data["test"].append(os.path.join(folder, "test", "*", cat, f).replace("\\", "/"))
     for cat in tqdm(os.listdir(os.path.join(folder, "val", "complete"))):
         files = os.listdir(os.path.join(folder, "val", "complete", cat))
         for f in files:
-            data["val"].append(os.path.join(folder, "val", "*", cat, f))
+            data["val"].append(os.path.join(folder, "val", "*", cat, f).replace("\\", "/"))
     with open(jsonFile, "w") as f:
         json.dump(data, f, indent=4)
 

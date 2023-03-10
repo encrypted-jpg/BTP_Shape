@@ -1,6 +1,6 @@
 import os
-from caesarDataset import CaesarDataset
-from dfaustDataset import DFaustDataset
+from datasets.caesarDataset import CaesarDataset
+from datasets.dfaustDataset import DFaustDataset
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm

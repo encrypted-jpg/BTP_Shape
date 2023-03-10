@@ -9,3 +9,4 @@ tqdm
 Ninja
 tensorboardX
 h5py
+pycpd

@@ -8,8 +8,8 @@ import open3d as o3d
 import argparse
 import json
 from models import *
-from caesarDataset import CaesarDataset
-from dfaustDataset import DFaustDataset
+from datasets.caesarDataset import CaesarDataset
+from datasets.dfaustDataset import DFaustDataset
 from extensions.chamfer_dist import ChamferDistanceL1
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -151,7 +151,7 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
                     index = random.randint(0, fine.shape[0] - 1)
                     plot_pcd_one_view(os.path.join(epochs_dir, 'epoch_{:03d}.png'.format(epoch)),
                                       [coarse[index].detach().cpu().numpy(), fine[index].detach().cpu().numpy(), gt[index].detach().cpu().numpy()],
-                                      ['Coarse', 'Dense', 'Ground Truth'], xlim=(-1, 1), ylim=(-1, 1), zlim=(-1, 1))
+                                      ['Coarse', 'Dense', 'Ground Truth'], xlim=(-0.5, 1), ylim=(-0.5, 1), zlim=(-0.5, 1))
 
         val_loss /= len(valLoader)
         end = time.time()

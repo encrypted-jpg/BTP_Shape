@@ -8,7 +8,7 @@ import open3d as o3d
 import argparse
 import json
 from models import *
-from caesarDataset import CaesarDataset
+from datasets.caesarDataset import CaesarDataset
 from tqdm import tqdm
 import time
 

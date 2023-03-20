@@ -121,10 +121,10 @@ def load_model_train(model, modelPath, optimizer, lr_scheduler):
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             optimizer_to(optimizer, "cuda")
             print("[+] Optimizer loaded")
-        if "lr_scheduler_state_dict" in checkpoint.keys():
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
-            scheduler_to(lr_scheduler, "cuda")
-            print("[+] LR Scheduler loaded")
+        # if "lr_scheduler_state_dict" in checkpoint.keys():
+        #     lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+        #     scheduler_to(lr_scheduler, "cuda")
+        #     print("[+] LR Scheduler loaded")
         if "epoch" in checkpoint.keys():
             epoch = checkpoint['epoch']
         else:
@@ -176,7 +176,7 @@ def train(model, trainLoader, valLoader, args):
     train_step = 0
     val_step = 0
     loss_log = {"train": []}
-
+    epoch = 0
     if args.resume:
         model, optimizer, lr_scheduler, epoch, minLoss, loss_log = load_model_train(model, args.modelPath, optimizer, lr_scheduler)
         train_step = epoch * len(trainLoader)
@@ -287,7 +287,7 @@ def train(model, trainLoader, valLoader, args):
             torch.save({
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
-            "lr_scheduler_state_dict": lr_scheduler.state_dict(),
+            # "lr_scheduler_state_dict": lr_scheduler.state_dict(),
             "epoch": epoch,
             "loss": val_loss,
             "loss_log": loss_log,
@@ -298,7 +298,7 @@ def train(model, trainLoader, valLoader, args):
         torch.save({
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
-            "lr_scheduler_state_dict": lr_scheduler.state_dict(),
+            # "lr_scheduler_state_dict": lr_scheduler.state_dict(),
             "epoch": epoch,
             "loss": val_loss,
             "loss_log": loss_log,

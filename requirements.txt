@@ -10,3 +10,4 @@ Ninja
 tensorboardX
 h5py
 pycpd
+visdom

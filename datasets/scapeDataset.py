@@ -6,23 +6,25 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 import json
 
-class DFaustDataset(Dataset):
-    def __init__(self, folder, jsonFile, partition="train", gt_num_points=6144, transform=None):
+class ScapeDataset(Dataset):
+    def __init__(self, folder, jsonFile, partition="train", seeds=16, gt_num_points=6144, p_num_points=384, transform=None):
         self.folder = folder
         self.transform = transform
-        self.gt_num_points = gt_num_points
         self.partial = []
         self.gts = []
         self.labels = []
+        self.gt_num_points = gt_num_points
+        self.seeds = list(range(1, seeds + 1))
         count = 1
-        if "D-Faust" not in folder:
-            jfolder = os.path.join(folder, "D-Faust")
-        with open(os.path.join(jfolder, jsonFile), 'r') as f:
+        if "scape-pcd" not in folder:
+            folder = os.path.join(folder, "scape-pcd")
+        with open(os.path.join(folder, jsonFile), 'r') as f:
             data = json.load(f)
         for name in tqdm(data[partition]):
-            self.partial.append(os.path.join(folder, name.replace("*", "partial")))
-            self.gts.append(os.path.join(folder, name.replace("*", "complete")))
-            self.labels.append(count)
+            for seed in self.seeds:
+                self.partial.append(os.path.join(folder, partition, "partial", name, name + "-" + str(seed) + ".pcd"))
+                self.gts.append(os.path.join(folder, partition, "complete", name + ".pcd"))
+                self.labels.append(count)
             count += 1
         self.cache = {}
         self.cacheLen = 10000
@@ -42,3 +44,4 @@ class DFaustDataset(Dataset):
         if len(self.cache) < self.cacheLen:
             self.cache[idx] = (points, gt_points), np.array([self.labels[idx]]), os.path.basename(self.partial[idx]).replace(".pcd", "")
         return (points, gt_points), np.array([self.labels[idx]]), os.path.basename(self.partial[idx]).replace(".pcd", "")
+    

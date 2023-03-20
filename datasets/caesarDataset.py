@@ -37,8 +37,10 @@ class CaesarDataset(Dataset):
         self.gts = []
         self.labels = []
         self.gt_num_points = gt_num_points
-        self.seeds = list(range(1, seeds + 1))
         count = 1
+        self.seeds = list(range(1, seeds + 1))
+        if "caesar-fitted-meshes-pcd" not in folder:
+            folder = os.path.join(folder, "caesar-fitted-meshes-pcd")
         with open(os.path.join(folder, jsonFile), 'r') as f:
             data = json.load(f)
         for name in tqdm(data[partition]):
@@ -47,10 +49,14 @@ class CaesarDataset(Dataset):
                 self.gts.append(os.path.join(folder, partition, "complete", name + ".pcd"))
                 self.labels.append(count)
             count += 1
+        self.cache = {}
+        self.cacheLen = 10000
 
     def __len__(self):
         return len(self.partial)
     def __getitem__(self, idx):
+        if idx in self.cache:
+            return self.cache[idx]
         pcd = o3d.io.read_point_cloud(self.partial[idx])
         points = np.asarray(pcd.points)
         if self.transform:
@@ -58,4 +64,6 @@ class CaesarDataset(Dataset):
         gt = o3d.io.read_point_cloud(self.gts[idx])
         gt_points = np.asarray(gt.points)
         gt_points = gt_points[np.random.choice(gt_points.shape[0], self.gt_num_points, replace=False), :]
+        if len(self.cache) < self.cacheLen:
+            self.cache[idx] = (points, gt_points), np.array([self.labels[idx]]), os.path.basename(self.partial[idx]).replace(".pcd", "")
         return (points, gt_points), np.array([self.labels[idx]]), os.path.basename(self.partial[idx]).replace(".pcd", "")

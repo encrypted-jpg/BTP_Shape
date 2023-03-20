@@ -10,6 +10,7 @@ import json
 from models import *
 from datasets.caesarDataset import CaesarDataset
 from datasets.dfaustDataset import DFaustDataset
+from datasets.scapeDataset import ScapeDataset
 from extensions.chamfer_dist import ChamferDistanceL1
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -77,6 +78,11 @@ def dataLoaders(args):
         trainDataset = DFaustDataset(folder, json, partition="train")
         testDataset = DFaustDataset(folder, json, partition="test")
         valDataset = DFaustDataset(folder, json, partition="val")
+    elif "scape" in folder.lower():
+        seeds = 16 if args.partial else 1
+        trainDataset = ScapeDataset(folder, json, partition="train", seeds=seeds)
+        testDataset = ScapeDataset(folder, json, partition="test", seeds=seeds)
+        valDataset = ScapeDataset(folder, json, partition="val", seeds=seeds)
     trainLoader = DataLoader(trainDataset, batch_size=batch_size, shuffle=True)
     testLoader = DataLoader(testDataset, batch_size=1, shuffle=True)
     valLoader = DataLoader(valDataset, batch_size=batch_size, shuffle=True)
@@ -114,9 +120,11 @@ def load_model_train(model, modelPath, optimizer, lr_scheduler):
         if "optimizer_state_dict" in checkpoint.keys():
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             optimizer_to(optimizer, "cuda")
+            print("[+] Optimizer loaded")
         if "lr_scheduler_state_dict" in checkpoint.keys():
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
             scheduler_to(lr_scheduler, "cuda")
+            print("[+] LR Scheduler loaded")
         if "epoch" in checkpoint.keys():
             epoch = checkpoint['epoch']
         else:
@@ -158,7 +166,7 @@ def train(model, trainLoader, valLoader, args):
     dirPath = os.path.dirname(bestSavePath)
     ckpt_dir, epochs_dir, log_fd, train_writer, val_writer = prepare_logger(dirPath)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=0)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.7)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vis, colors, label = get_visdom(args.visdom)
     print_log(log_fd, "Visdom Connection: {}".format(vis.check_connection()))
@@ -175,7 +183,7 @@ def train(model, trainLoader, valLoader, args):
         val_step = epoch * len(valLoader)
         minLossEpoch = epoch
         print_log(log_fd, "Resuming from epoch: {}, loss: {}".format(epoch, minLoss))
-
+    print_log(log_fd, "Learning Rate: {}".format(optimizer.param_groups[0]['lr']))
     chamfer = ChamferDistanceL1().to(device)
     # knn = kNNLoss(k=15, n_seeds=50)
     model.to(device)
@@ -235,7 +243,7 @@ def train(model, trainLoader, valLoader, args):
         end = time.time()
         # print("[+] Epoch: {}, Train Loss: {}, Time: {}".format(epoch, train_loss, end-start))
         lr_scheduler.step()
-        print_log(log_fd, "Epoch: {}, Train Loss: {}, Time: {}".format(epoch, train_loss, end-start))
+        print_log(log_fd, "Epoch: {}, Train Loss: {}, Learning_Rate: {}, Time: {}".format(epoch, train_loss, optimizer.param_groups[0]['lr'], end-start))
         
         model.eval()
         val_loss = 0.0
@@ -302,8 +310,8 @@ def train(model, trainLoader, valLoader, args):
     log_fd.close()
 
 def testModel(model, testLoader, args):
-    if not os.path.exists(args.testOut):
-        os.makedirs(args.testOut)
+    if not os.path.exists(os.path.join(args.savePath, args.testOut)):
+        os.makedirs(os.path.join(args.savePath, args.testOut))
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     model.to(device)
     model.eval()
@@ -313,7 +321,10 @@ def testModel(model, testLoader, args):
     # knn = kNNLoss(k=15, n_seeds=50)
     with torch.no_grad():
         for i, (data, labels, names) in enumerate(tqdm(testLoader)):
-            gt = data[0]
+            if args.partial:
+                gt = data[0]
+            else:
+                gt = data[1]
             # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
             gt = gt.to(torch.float32).to(device)
             optimizer.zero_grad()
@@ -323,10 +334,10 @@ def testModel(model, testLoader, args):
             # knnloss = knn(fine)
             loss = loss1 * 0.5 + loss2 * 0.50
             test_loss += loss.item()
-            if args.save:
-                save_pcd(fine.squeeze().detach().cpu().numpy(), os.path.join(args.testOut, "{}_fine.pcd".format(names[0])))
-                save_pcd(data[0].squeeze(), os.path.join(args.testOut, "{}_partial.pcd".format(names[0])))
-                save_pcd(data[1].squeeze(), os.path.join(args.testOut, "{}_gt.pcd".format(names[0])))
+            if args.testSave:
+                save_pcd(fine.squeeze().detach().cpu().numpy(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(names[0])))
+                save_pcd(data[0].squeeze(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_partial.pcd".format(names[0])))
+                save_pcd(data[1].squeeze(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_gt.pcd".format(names[0])))
     test_loss /= len(testLoader)
     end = time.time()
     print("[+] Test Loss: {}, Time: {}".format(test_loss, end-start))
@@ -364,6 +375,8 @@ def get_args():
     parser.add_argument("--batch_size", type=int, default=12, help="Batch size")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--step", type=int, default=5, help="Step size for lr scheduler")
+    parser.add_argument("--gamma", type=float, default=0.5, help="Gamma for lr scheduler")
     parser.add_argument("--resume", action="store_true", help="Resume training")
     parser.add_argument("--modelPath", type=str, default="bestModel.pth", help="Path to model")
     parser.add_argument("--test", action="store_true", help="Test model")

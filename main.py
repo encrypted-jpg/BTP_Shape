@@ -1,18 +1,19 @@
 import os
 from datasets.caesarDataset import CaesarDataset
 from datasets.dfaustDataset import DFaustDataset
+from datasets.scapeDataset import ScapeDataset
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 
-folder = "D-Faust"
+folder = "scape-pcd"
 
 BATCH_SIZE = 8
 
-trainDataset = DFaustDataset(folder, "data_subset.json", partition="train")
-testDataset = DFaustDataset(folder, "data_subset.json", partition="test")
-valDataset = DFaustDataset(folder, "data_subset.json", partition="val")
+trainDataset = ScapeDataset(folder, "data.json", partition="train")
+testDataset = ScapeDataset(folder, "data.json", partition="test")
+valDataset = ScapeDataset(folder, "data.json", partition="val")
 trainLoader = DataLoader(trainDataset, batch_size=BATCH_SIZE, shuffle=True)
 testLoader = DataLoader(testDataset, batch_size=BATCH_SIZE, shuffle=True)
 valLoader = DataLoader(valDataset, batch_size=BATCH_SIZE, shuffle=True)

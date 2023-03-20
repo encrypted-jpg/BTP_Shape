@@ -30,12 +30,13 @@ class CaesarDataset(Dataset):
                 |-- *-[1-8].pcd
     Use the json file to get the list of files to be used for training, testing and validation.
     """
-    def __init__(self, folder, jsonFile, partition="train", seeds=8, transform=None):
+    def __init__(self, folder, jsonFile, partition="train", seeds=8, gt_num_points=6144, p_num_points=384, transform=None):
         self.folder = folder
         self.transform = transform
         self.partial = []
         self.gts = []
         self.labels = []
+        self.gt_num_points = gt_num_points
         self.seeds = list(range(1, seeds + 1))
         count = 1
         with open(os.path.join(folder, jsonFile), 'r') as f:
@@ -56,4 +57,5 @@ class CaesarDataset(Dataset):
             points = self.transform(points)
         gt = o3d.io.read_point_cloud(self.gts[idx])
         gt_points = np.asarray(gt.points)
+        gt_points = gt_points[np.random.choice(gt_points.shape[0], self.gt_num_points, replace=False), :]
         return (points, gt_points), np.array([self.labels[idx]]), os.path.basename(self.partial[idx]).replace(".pcd", "")

@@ -17,12 +17,13 @@ import time
 import datetime
 from utils.visual import plot_pcd_one_view
 import random
+import visdom
 
 def make_dir(dir_path):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 
-def log(fd,  message, time=True):
+def print_log(fd,  message, time=True):
     if time:
         message = ' ==> '.join([datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), message])
     fd.write(message + '\n')
@@ -45,8 +46,8 @@ def prepare_logger(log_dir="log", exp_name="exp"):
     logger_file = os.path.join(log_dir, exp_name, 'logger.log')
     log_fd = open(logger_file, 'a')
 
-    log(log_fd, "Experiment: {}".format(exp_name), False)
-    log(log_fd, "Logger directory: {}".format(logger_path), False)
+    print_log(log_fd, "Experiment: {}".format(exp_name), False)
+    print_log(log_fd, "Logger directory: {}".format(logger_path), False)
 
     train_writer = SummaryWriter(os.path.join(logger_path, 'train'))
     val_writer = SummaryWriter(os.path.join(logger_path, 'val'))
@@ -79,7 +80,7 @@ def dataLoaders(folder, json, batch_size):
 def getModel():
     return PCN(num_dense=6144, latent_dim=1024, grid_size=4)
 
-def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath):
+def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath, args):
     print("[+] Training the model...")
     # Get directory from the path
     dirPath = os.path.dirname(bestSavePath)
@@ -106,9 +107,12 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
         model.train()
         train_loss = 0
         start = time.time()
-        print("------------------Epoch: {}------------------".format(epoch))
+        print_log("------------------Epoch: {}------------------".format(epoch))
         for i, (data, labels, names) in enumerate(tqdm(trainLoader)):
-            gt = data[1]
+            if args.partial:
+                gt = data[0]
+            else:
+                gt = data[1]
             # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
             gt = gt.to(torch.float32).to(device)
             optimizer.zero_grad()
@@ -128,7 +132,7 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
         # print("[+] Epoch: {}, Train Loss: {}, Time: {}".format(epoch, train_loss, end-start))
         lr_schedual.step()
         train_step += 1
-        log(log_fd, "Epoch: {}, Train Loss: {}, Time: {}".format(epoch, train_loss, end-start))
+        print_log(log_fd, "Epoch: {}, Train Loss: {}, Time: {}".format(epoch, train_loss, end-start))
         
         model.eval()
         val_loss = 0
@@ -158,7 +162,7 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
         # print("[+] Epoch: {}, Val Loss: {}, Time: {}".format(epoch, val_loss, end-start))
         val_step += 1
         val_writer.add_scalar('ValLoss', val_loss, val_step)
-        log(log_fd, "Epoch: {}, Val Loss: {}, Time: {}".format(epoch, val_loss, end-start))
+        print_log(log_fd, "Epoch: {}, Val Loss: {}, Time: {}".format(epoch, val_loss, end-start))
 
         if val_loss < minLoss:
             minLossEpoch = epoch
@@ -167,22 +171,24 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath)
             "model_state_dict": model.state_dict(),
             "epoch": epoch,
             "loss": val_loss,
+            "loss_log": args.visdom["loss_log"]
             }, bestSavePath)
             # print("[+] Best Model saved")
-            log(log_fd, "Best Model saved")
+            print_log(log_fd, "Best Model saved")
         
         torch.save({
             "model_state_dict": model.state_dict(),
             "epoch": epoch,
             "loss": val_loss,
+            "loss_log": args.visdom["loss_log"]
             }, lastSavePath)
         # print("[+] Last Model saved")
-        log(log_fd, "Last Model saved")
+        print_log(log_fd, "Last Model saved")
 
     print("[+] Best Model saved at epoch: {} with loss {}".format(minLossEpoch, minLoss))
     log_fd.close()
 
-def testModel(model, testLoader, testOut, lr, save):
+def testModel(model, testLoader, testOut, lr, save, args):
     if not os.path.exists(testOut):
         os.makedirs(testOut)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -193,7 +199,7 @@ def testModel(model, testLoader, testOut, lr, save):
     chamfer = ChamferDistanceL1()
     with torch.no_grad():
         for i, (data, labels, names) in enumerate(tqdm(testLoader)):
-            gt = data[1]
+            gt = data[0]
             # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
             gt = gt.to(torch.float32).to(device)
             optimizer.zero_grad()
@@ -204,6 +210,7 @@ def testModel(model, testLoader, testOut, lr, save):
             test_loss += loss.item()
             if save:
                 save_pcd(fine.squeeze().detach().cpu().numpy(), os.path.join(testOut, "{}_fine.pcd".format(names[0])))
+                save_pcd(data[0].squeeze(), os.path.join(testOut, "{}_partial.pcd".format(names[0])))
                 save_pcd(data[1].squeeze(), os.path.join(testOut, "{}_gt.pcd".format(names[0])))
     test_loss /= len(testLoader)
     end = time.time()
@@ -224,17 +231,20 @@ def generate(model, count, genFolder):
 
 def load_model(model, path):
     print("[+] Loading Model from: {}".format(path))
+    loss_log = {"train": []}
     checkpoint = torch.load(path)
     try:
         model.load_state_dict(checkpoint["model_state_dict"])
         print("[+] Model Statistics - Epoch: {}, Loss: {}".format(checkpoint["epoch"], checkpoint["loss"]))
+        if "loss_log" in checkpoint:
+            loss_log = checkpoint["loss_log"]
     except:
         model.load_state_dict(checkpoint)
-    return model
+    return loss_log, model
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--folder", type=str, default="D-Faust", help="Path to dataset")
+    parser.add_argument("--folder", type=str, default="caesar-fitted-meshes-pcd", help="Path to dataset")
     parser.add_argument("--json", type=str, default="data_subset.json", help="Path to json file")
     parser.add_argument("--genFolder", type=str, default="gen", help="Path to generated files")
     parser.add_argument("--testOut", type=str, default="testOut", help="Path to test output")
@@ -246,6 +256,8 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default="bestModel.pth", help="Path to model")
     parser.add_argument("--test", action="store_true", help="Test model")
     parser.add_argument("--testSave", action="store_true", help="Save test output")
+    parser.add_argument("--partial", action="store_true", help="Use partial point clouds")
+    parser.add_argument("--visdom", type=int, default=8097, help="Port for visdom")
     args = parser.parse_args()
     
     folder = args.folder
@@ -261,6 +273,10 @@ if __name__ == "__main__":
     modelPath = args.model
     test = args.test
     testSave = args.testSave
+    vis = visdom.Visdom(port=args.visdom)
+    args.visdom = {"vis": vis}
+    assert vis.check_connection()
+    
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
@@ -269,23 +285,25 @@ if __name__ == "__main__":
     model = getModel()
 
     if resume or test:
-        model = load_model(model, modelPath)
+        loss_log,  model = load_model(model, modelPath)
     
-    print(model)
+    args.visdom["loss_log"] = loss_log
+    
+    # print(model)
     print("[+] Total Number of Parameters: {}".format(count_parameters(model)))
     
     if test:
         testModel(model, testLoader, testOut, lr=LR, save=testSave)
         exit()
 
-    train(model, trainLoader, valLoader, epochs=EPOCHS, lr=LR, bestSavePath=bestSavePath, lastSavePath=lastSavePath)
+    train(model, trainLoader, valLoader, epochs=EPOCHS, lr=LR, bestSavePath=bestSavePath, lastSavePath=lastSavePath, args=args)
     
     print("[+] Testing Model")
-    testModel(model, testLoader, testOut, lr=LR, save=testSave)
+    testModel(model, testLoader, testOut, lr=LR, save=testSave, args=args)
 
     # Load Model
     model = load_model(model, bestSavePath)
     
     print("[+] Testing Model with best model")
-    testModel(model, testLoader, testOut, lr=LR, save=testSave)
+    testModel(model, testLoader, testOut, lr=LR, save=testSave, args=args)
     

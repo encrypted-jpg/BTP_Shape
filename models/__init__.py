@@ -3,4 +3,4 @@ from .sphericalVae import SphericalVAE
 from .gcnVae import GCN3DVAE
 from .foldingVae import FoldingVAE
 from .baseVae import BaseVAE
-from .pcn import PCN
+from .pcn import PCN, PCNAE, PCNDecoder, PCNEncoder

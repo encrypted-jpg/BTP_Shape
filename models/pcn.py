@@ -209,3 +209,75 @@ class PCNAE(nn.Module):
         coarse, fine = self.decoder(feat)
         return coarse, fine
 
+
+class Cluster(nn.Module):
+    def __init__(self, pcnModelPath, clusterPath, chamfer_dist, num_dense=6144, latent_dim=1024, grid_size=4):
+        super().__init__()
+        self.num_dense = num_dense
+        self.latent_dim = latent_dim
+        self.model = PCN(num_dense=num_dense, latent_dim=latent_dim, grid_size=grid_size)
+        self.load_model(pcnModelPath)
+
+        assert clusterPath != None, "[-] Cluster Path is None"
+
+        self.kmeans, self.top5pcs = self.load_clusters(clusterPath)
+        
+        assert chamfer_dist != None, "[-] Chamfer Distance is None"
+        
+        self.chamfer_dist = chamfer_dist
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model.to(self.device)
+        self.model.eval()
+
+    def forward(self, pc):
+        return self.getNPC(pc)
+
+    def load_clusters(self, path):
+        modelDict = pickle.load(open(path, "rb"))
+        kmeans = modelDict["kmeans"]
+        top5pcs = modelDict["top5pcs"]
+        return kmeans, top5pcs
+
+    def load_model(self, path):
+        if path == None:
+            return None
+        print("[+] Loading Model from: {}".format(path))
+        checkpoint = torch.load(path)
+        # for p in self.model.parameters():
+        #     print(p.shape)
+        # for x, y in checkpoint['model_state_dict'].items():
+        #     print(x, y.shape)
+        # for (p, (x, y)) in zip(self.model.parameters(), checkpoint["model_state_dict"].items()):
+        #     print(x, p.shape, y.shape)
+        try:
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+            print("[+] Model Statistics - Epoch: {}, Loss: {}".format(checkpoint["epoch"], checkpoint["loss"]))
+        except:
+            self.model.load_state_dict(checkpoint)
+    
+    def getNearest(self, pc, top5):
+        dists = []
+        for i in range(len(top5)):
+            cmp = torch.Tensor(np.array([top5[i]])).to(torch.float32).to(self.device)
+            dist = self.chamfer_dist(pc, cmp)
+            dists.append(dist.item())
+        return top5[np.argmin(dists)]
+
+    def getNPC(self, pc):
+        # gt = torch.Tensor(np.array([pc])).to(torch.float32).to(self.device)
+        gt = pc.detach().to(torch.float32)
+        rep = self.model.get_representation(gt).detach().cpu().numpy()
+        # for i, val in enumerate(rep):
+        #     if val.any() == np.NaN:
+        #         rep[i] = np.zeros(self.latent_dim)
+        labels = self.kmeans.predict(rep)
+        npcs = []
+        for label in labels.tolist():
+            top5 = self.top5pcs[label]
+            nearestPC = self.getNearest(gt, top5)
+            # gtidx = np.random.choice(nearestPC.shape[0], self.num_dense, replace=False)
+            # nearestPC = nearestPC[gtidx]
+            npcs.append(nearestPC)
+        
+        npcs = torch.from_numpy(np.array(npcs)).to(self.device)
+        return npcs

@@ -117,10 +117,10 @@ def load_model_train(model, modelPath, optimizer, lr_scheduler):
     checkpoint = torch.load(modelPath, map_location="cuda")
     try:
         model.load_state_dict(checkpoint['model_state_dict'])
-        if "optimizer_state_dict" in checkpoint.keys():
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            optimizer_to(optimizer, "cuda")
-            print("[+] Optimizer loaded")
+        # if "optimizer_state_dict" in checkpoint.keys():
+        #     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        #     optimizer_to(optimizer, "cuda")
+        #     print("[+] Optimizer loaded")
         # if "lr_scheduler_state_dict" in checkpoint.keys():
         #     lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
         #     scheduler_to(lr_scheduler, "cuda")
@@ -160,6 +160,8 @@ def get_visdom(port):
 
 def train(model, trainLoader, valLoader, args):
     print("[+] Training the model...")
+    if args.partial:
+        print("[+] Using PARTIAL POINT CLOUDS AS INPUT")
     # Get directory from the path
     bestSavePath = os.path.join(args.savePath, "bestModel.pth")
     lastSavePath = os.path.join(args.savePath, "lastModel.pth")
@@ -171,7 +173,6 @@ def train(model, trainLoader, valLoader, args):
     vis, colors, label = get_visdom(args.visdom)
     print_log(log_fd, "Visdom Connection: {}".format(vis.check_connection()))
 
-    minLoss = 1e10
     minLossEpoch = 0
     train_step = 0
     val_step = 0
@@ -186,7 +187,10 @@ def train(model, trainLoader, valLoader, args):
     print_log(log_fd, "Learning Rate: {}".format(optimizer.param_groups[0]['lr']))
     chamfer = ChamferDistanceL1().to(device)
     # knn = kNNLoss(k=15, n_seeds=50)
+    # minLoss = 1e10
+    train_step = 0
     model.to(device)
+    print("[+] Training Step: {}".format(train_step))
     for epoch in range(epoch + 1, args.epochs + epoch + 1):
         if train_step < 5000:
             x = 0.9
@@ -196,7 +200,7 @@ def train(model, trainLoader, valLoader, args):
             x = 0.8
             y = 0.2
             z = 0.0
-        elif train_step < 40000:
+        elif train_step < 25000:
             x = 0.5
             y = 0.5
             z = 0.0

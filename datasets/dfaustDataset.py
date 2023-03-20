@@ -15,8 +15,11 @@ class DFaustDataset(Dataset):
         self.gts = []
         self.labels = []
         count = 1
+        jfolder = folder
         if "D-Faust" not in folder:
             jfolder = os.path.join(folder, "D-Faust")
+        else:
+            folder = folder.replace("D-Faust", "")
         with open(os.path.join(jfolder, jsonFile), 'r') as f:
             data = json.load(f)
         for name in tqdm(data[partition]):

@@ -237,6 +237,7 @@ class Cluster(nn.Module):
         self.model.eval()
 
     def forward(self, pc, idx=None):
+        temp_found = False
         if self.json is not None and idx is not None:
             pclist = []
             err = False
@@ -248,10 +249,14 @@ class Cluster(nn.Module):
                     err = True
                     print("[-] Error in JSON with Key: ", idx[k])
             if not err:
-                return torch.from_numpy(np.array(pclist)).to(torch.float32)
+                temp_found = True
+                temp = np.array(pclist)
         with torch.no_grad():
             source_point_cloud = pc.detach().cpu().numpy()
-            template_point_cloud = self.getNPC(pc).detach().cpu().numpy()
+            if not temp_found:
+                template_point_cloud = self.getNPC(pc).detach().cpu().numpy()
+            else:
+                template_point_cloud = temp
             
             voxel_size = 5
             transformed_point_clouds = []

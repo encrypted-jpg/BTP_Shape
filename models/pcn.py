@@ -239,10 +239,16 @@ class Cluster(nn.Module):
     def forward(self, pc, idx=None):
         if self.json is not None and idx is not None:
             pclist = []
+            err = False
             for k in range(pc.shape[0]):
-                i, j = self.json[idx[k]]
-                pclist.append(np.array(self.top5pcs[i][j]))
-            return torch.from_numpy(np.array(pclist)).to(torch.float32)
+                try:
+                    i, j = self.json[idx[k]]
+                    pclist.append(np.array(self.top5pcs[i][j]))
+                except KeyError:
+                    err = True
+                    print("[-] Error in JSON with Key: ", idx[k])
+            if not err:
+                return torch.from_numpy(np.array(pclist)).to(torch.float32)
         with torch.no_grad():
             source_point_cloud = pc.detach().cpu().numpy()
             template_point_cloud = self.getNPC(pc).detach().cpu().numpy()

@@ -278,7 +278,7 @@ def train(model, trainLoader, valLoader, args):
                 inp = inp.to(torch.float32).to(device)
                 gt = gt.to(torch.float32).to(device)
                 ################CLUSTER################
-                inp = cluster(inp)
+                inp = cluster(inp, names)
                 #######################################
                 optimizer.zero_grad()
                 coarse, fine = model(inp)
@@ -357,7 +357,7 @@ def testModel(model, testLoader, args):
             inp = inp.to(torch.float32).to(device)
             gt = gt.to(torch.float32).to(device)
             ################CLUSTER################
-            inp = cluster(inp)
+            inp = cluster(inp, names)
             #######################################
             optimizer.zero_grad()
             coarse, fine = model(inp)

@@ -88,8 +88,8 @@ def dataLoaders(args):
     valLoader = DataLoader(valDataset, batch_size=batch_size, shuffle=True)
     return trainLoader, testLoader, valLoader
 
-def getModel():
-    return PCN(num_dense=6144, latent_dim=1024, grid_size=4)
+def getModel(device):
+    return PCN(num_dense=6144, latent_dim=1024, grid_size=4, device=device)
 
 def optimizer_to(optim, device):
     for param in optim.state.values():
@@ -112,18 +112,18 @@ def scheduler_to(sched, device):
             if param._grad is not None:
                 param._grad.data = param._grad.data.to(device)
 
-def load_model_train(model, modelPath, optimizer, lr_scheduler):
+def load_model_train(model, modelPath, optimizer, lr_scheduler, args):
     print("[+] Loading the model...")
-    checkpoint = torch.load(modelPath, map_location="cuda")
+    checkpoint = torch.load(modelPath, map_location=f"cuda:{args.gpu}")
     try:
         model.load_state_dict(checkpoint['model_state_dict'])
         # if "optimizer_state_dict" in checkpoint.keys():
         #     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        #     optimizer_to(optimizer, "cuda")
+        #     optimizer_to(optimizer, f"cuda:{args.gpu}")
         #     print("[+] Optimizer loaded")
         # if "lr_scheduler_state_dict" in checkpoint.keys():
         #     lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
-        #     scheduler_to(lr_scheduler, "cuda")
+        #     scheduler_to(lr_scheduler, f"cuda:{args.gpu}")
         #     print("[+] LR Scheduler loaded")
         if "epoch" in checkpoint.keys():
             epoch = checkpoint['epoch']
@@ -169,7 +169,7 @@ def train(model, trainLoader, valLoader, args):
     ckpt_dir, epochs_dir, log_fd, train_writer, val_writer = prepare_logger(dirPath)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=0)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
     vis, colors, label = get_visdom(args.visdom)
     print_log(log_fd, "Visdom Connection: {}".format(vis.check_connection()))
 
@@ -179,7 +179,7 @@ def train(model, trainLoader, valLoader, args):
     loss_log = {"train": []}
     epoch = 0
     if args.resume:
-        model, optimizer, lr_scheduler, epoch, minLoss, loss_log = load_model_train(model, args.modelPath, optimizer, lr_scheduler)
+        model, optimizer, lr_scheduler, epoch, minLoss, loss_log = load_model_train(model, args.modelPath, optimizer, lr_scheduler, args)
         train_step = epoch * len(trainLoader)
         val_step = epoch * len(valLoader)
         minLossEpoch = epoch
@@ -191,16 +191,16 @@ def train(model, trainLoader, valLoader, args):
     train_step = 0
     model.to(device)
     print("[+] Training Step: {}".format(train_step))
-    for epoch in range(epoch + 1, args.epochs + epoch + 1):
-        if train_step < 5000:
+    for epoch in range(1, args.epochs + 1):
+        if epoch < 5:
             x = 0.9
             y = 0.1
             z = 0.0
-        elif train_step < 10000:
+        elif epoch < 10:
             x = 0.8
             y = 0.2
             z = 0.0
-        elif train_step < 25000:
+        elif epoch < 25:
             x = 0.5
             y = 0.5
             z = 0.0
@@ -243,9 +243,9 @@ def train(model, trainLoader, valLoader, args):
                 plot_X = np.stack([np.arange(len(loss_log['train']))], 1)
                 plot_Y = np.stack([np.array(loss_log['train'])], 1)
                 vis.line(X=plot_X, Y=plot_Y, win=1,
-                                    opts={'title': f'PCN Train Loss', 'legend': ['train_loss'], 'xlabel': 'Iteration', 'ylabel': 'Loss'})
+                                    opts={'title': 'PCN Train Loss', 'legend': ['train_loss'], 'xlabel': 'Iteration', 'ylabel': 'Loss'})
                 vis.scatter(X=recon[0].reshape(-1, 3), Y=label, win=2,
-                                     opts={'title': f"Generated Pointcloud ", 'markersize': 2, 'markercolor': colors, 'webgl': True})
+                                     opts={'title': "Generated Pointcloud", 'markersize': 2, 'markercolor': colors, 'webgl': True})
         train_loss /= len(trainLoader)
         end = time.time()
         # print("[+] Epoch: {}, Train Loss: {}, Time: {}".format(epoch, train_loss, end-start))
@@ -314,7 +314,7 @@ def train(model, trainLoader, valLoader, args):
             "loss_log": loss_log,
             }, lastSavePath)
         # print("[+] Last Model saved")
-        print_log(log_fd, "Last Model saved")
+        print_log(log_fd, "Last Model saved (best loss {:.4f} at epoch {})" .format(minLoss, minLossEpoch))
 
     print("[+] Best Model saved at epoch: {} with loss {}".format(minLossEpoch, minLoss))
     log_fd.close()
@@ -387,6 +387,7 @@ def get_args():
     parser.add_argument("--savePath", type=str, default=".", help="Path to save model")
     parser.add_argument("--batch_size", type=int, default=12, help="Batch size")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
+    parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--step", type=int, default=5, help="Step size for lr scheduler")
     parser.add_argument("--gamma", type=float, default=0.5, help="Gamma for lr scheduler")
@@ -402,11 +403,11 @@ def get_args():
 if __name__ == "__main__":
     args = get_args()   
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
+    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
+    torch.cuda.set_device(args.gpu)
     trainLoader, testLoader, valLoader = dataLoaders(args)
     
-    model = getModel()
+    model = getModel(device)
 
     if args.test:
         model = load_model_test(model, args.modelPath)

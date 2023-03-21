@@ -44,4 +44,4 @@ class DFaustDataset(Dataset):
         gt_points = gt_points[np.random.choice(gt_points.shape[0], self.gt_num_points, replace=False), :]
         if len(self.cache) < self.cacheLen:
             self.cache[idx] = (points, gt_points), np.array([self.labels[idx]]), os.path.basename(self.partial[idx]).replace(".pcd", "")
-        return (points, gt_points), np.array([self.labels[idx]]), os.path.basename(self.partial[idx]).replace(".pcd", "")
+        return (points, gt_points), np.array([self.labels[idx]]), self.partial[idx].replace(".pcd", "")

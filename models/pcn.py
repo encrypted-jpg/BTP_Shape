@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
 from extensions.chamfer_dist import ChamferDistanceL1
+import numpy as np
+import pickle
+import open3d as o3d
+import copy
+import json
 
 
 class PCN(nn.Module):
@@ -14,7 +19,7 @@ class PCN(nn.Module):
         num_coarse: 1024
     """
 
-    def __init__(self, num_dense=16384, latent_dim=1024, grid_size=4):
+    def __init__(self, num_dense=16384, latent_dim=1024, grid_size=4, device="cuda"):
         super().__init__()
 
         self.num_dense = num_dense
@@ -59,7 +64,7 @@ class PCN(nn.Module):
         a = torch.linspace(-0.05, 0.05, steps=self.grid_size, dtype=torch.float).view(1, self.grid_size).expand(self.grid_size, self.grid_size).reshape(1, -1)
         b = torch.linspace(-0.05, 0.05, steps=self.grid_size, dtype=torch.float).view(self.grid_size, 1).expand(self.grid_size, self.grid_size).reshape(1, -1)
         
-        self.folding_seed = torch.cat([a, b], dim=0).view(1, 2, self.grid_size ** 2).cuda()  # (1, 2, S)
+        self.folding_seed = torch.cat([a, b], dim=0).view(1, 2, self.grid_size ** 2).to(device)  # (1, 2, S)
 
     def forward(self, xyz):
         B, N, _ = xyz.shape
@@ -110,7 +115,6 @@ class PCN(nn.Module):
         fine = self.final_conv(feat) + point_feat                                            # (B, 3, num_fine), fine point cloud
 
         return coarse.contiguous(), fine.transpose(1, 2).contiguous()
-
 
 class PCNEncoder(nn.Module):
     def __init__(self, latent_dim=1024):
@@ -194,7 +198,6 @@ class PCNDecoder(nn.Module):
 
         return coarse.contiguous(), fine.transpose(1, 2).contiguous()
 
-
 class PCNAE(nn.Module):
     def __init__(self, latent_dim=1024, num_dense=6144, grid_size=4):
         super(PCNAE, self).__init__()
@@ -209,13 +212,12 @@ class PCNAE(nn.Module):
         coarse, fine = self.decoder(feat)
         return coarse, fine
 
-
 class Cluster(nn.Module):
-    def __init__(self, pcnModelPath, clusterPath, chamfer_dist, num_dense=6144, latent_dim=1024, grid_size=4):
+    def __init__(self, pcnModelPath, clusterPath, chamfer_dist, num_dense=6144, latent_dim=1024, grid_size=4, device="cuda", jsonPath=None):
         super().__init__()
         self.num_dense = num_dense
         self.latent_dim = latent_dim
-        self.model = PCN(num_dense=num_dense, latent_dim=latent_dim, grid_size=grid_size)
+        self.model = PCN(num_dense=num_dense, latent_dim=latent_dim, grid_size=grid_size, device=device)
         self.load_model(pcnModelPath)
 
         assert clusterPath != None, "[-] Cluster Path is None"
@@ -225,12 +227,39 @@ class Cluster(nn.Module):
         assert chamfer_dist != None, "[-] Chamfer Distance is None"
         
         self.chamfer_dist = chamfer_dist
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.jsonPath = jsonPath
+        self.json = None
+        if self.jsonPath is not None:
+            with open(self.jsonPath) as f:
+                self.json = json.load(f)
+        self.device = device
         self.model.to(self.device)
         self.model.eval()
 
-    def forward(self, pc):
-        return self.getNPC(pc)
+    def forward(self, pc, idx=None):
+        if self.json is not None and idx is not None:
+            pclist = []
+            for k in range(pc.shape[0]):
+                i, j = self.json[idx[k]]
+                pclist.append(np.array(self.top5pcs[i][j]))
+            return torch.from_numpy(np.array(pclist)).to(torch.float32)
+        with torch.no_grad():
+            source_point_cloud = pc.detach().cpu().numpy()
+            template_point_cloud = self.getNPC(pc).detach().cpu().numpy()
+            
+            voxel_size = 5
+            transformed_point_clouds = []
+            for i in range(source_point_cloud.shape[0]):
+                source, target, source_down, target_down, source_fpfh, target_fpfh = self.prepare_dataset(voxel_size, source_point_cloud[i].reshape(-1, 3), template_point_cloud[i].reshape(-1, 3))
+                result_ransac = self.execute_global_registration(source_down, target_down,
+                                                            source_fpfh, target_fpfh,
+                                                            voxel_size)
+                result_icp = self.refine_registration(source, target, source_fpfh, target_fpfh,
+                                                voxel_size, result_ransac, 0.002)
+                source.transform(result_icp.transformation)
+                transformed_point_clouds.append(source)
+            transformed_point_cloud = torch.from_numpy(np.array([np.array(transformed_point_cloud.points) for transformed_point_cloud in transformed_point_clouds])).to(self.device)
+        return transformed_point_cloud.to(torch.float32)
 
     def load_clusters(self, path):
         modelDict = pickle.load(open(path, "rb"))
@@ -243,12 +272,6 @@ class Cluster(nn.Module):
             return None
         print("[+] Loading Model from: {}".format(path))
         checkpoint = torch.load(path)
-        # for p in self.model.parameters():
-        #     print(p.shape)
-        # for x, y in checkpoint['model_state_dict'].items():
-        #     print(x, y.shape)
-        # for (p, (x, y)) in zip(self.model.parameters(), checkpoint["model_state_dict"].items()):
-        #     print(x, p.shape, y.shape)
         try:
             self.model.load_state_dict(checkpoint["model_state_dict"])
             print("[+] Model Statistics - Epoch: {}, Loss: {}".format(checkpoint["epoch"], checkpoint["loss"]))
@@ -260,8 +283,8 @@ class Cluster(nn.Module):
         for i in range(len(top5)):
             cmp = torch.Tensor(np.array([top5[i]])).to(torch.float32).to(self.device)
             dist = self.chamfer_dist(pc, cmp)
-            dists.append(dist.item())
-        return top5[np.argmin(dists)]
+            dists.append(dist.detach().cpu().numpy())
+        return top5[np.argmin(dists)], np.argmin(dists)
 
     def getNPC(self, pc):
         # gt = torch.Tensor(np.array([pc])).to(torch.float32).to(self.device)
@@ -274,10 +297,136 @@ class Cluster(nn.Module):
         npcs = []
         for label in labels.tolist():
             top5 = self.top5pcs[label]
-            nearestPC = self.getNearest(gt, top5)
+            nearestPC, _ = self.getNearest(gt, top5)
             # gtidx = np.random.choice(nearestPC.shape[0], self.num_dense, replace=False)
             # nearestPC = nearestPC[gtidx]
             npcs.append(nearestPC)
         
         npcs = torch.from_numpy(np.array(npcs)).to(self.device)
         return npcs
+    
+    def getIdx(self, pc):
+        # gt = torch.Tensor(np.array([pc])).to(torch.float32).to(self.device)
+        gt = pc.detach().to(torch.float32)
+        rep = self.model.get_representation(gt).detach().cpu().numpy()
+        # for i, val in enumerate(rep):
+        #     if val.any() == np.NaN:
+        #         rep[i] = np.zeros(self.latent_dim)
+        labels = self.kmeans.predict(rep)
+        npcs = []
+        for label in labels.tolist():
+            top5 = self.top5pcs[label]
+            _, idx = self.getNearest(gt, top5)
+            # gtidx = np.random.choice(nearestPC.shape[0], self.num_dense, replace=False)
+            # nearestPC = nearestPC[gtidx]
+            npcs.append((int(label), int(idx)))
+        
+        return npcs
+    
+    def draw_registration_result(self, source, target, window_name="Result"):
+        """
+        Displays registration result
+        :param window_name: name of window
+        :param source: source PointCloud
+        :param target: target PointCloud
+        :param transformation: transformation from target to source
+        :return:
+        """
+        source = copy.deepcopy(source)
+        target = copy.deepcopy(target)
+        source_temp = o3d.geometry.PointCloud()
+        source_temp.points = o3d.utility.Vector3dVector(source)
+        target_temp = o3d.geometry.PointCloud()
+        target_temp.points = o3d.utility.Vector3dVector(target)
+        source_temp.paint_uniform_color([1, 0.706, 0])
+        target_temp.paint_uniform_color([0, 0.651, 0.929])
+        # source_temp.transform(transformation)
+        o3d.visualization.draw_geometries([source_temp, target_temp], window_name=window_name)
+
+    def preprocess_point_cloud(self, pcd, voxel_size):
+        """
+        Resamples point cloud and computes normals
+        :param pcd: point cloud
+        :param voxel_size: size of voxel
+        :return: resampled pcd and features
+        """
+        # if LOG:
+        #     print("INFO: Downsampling with a voxel size %.3f." % voxel_size)
+        pcd_down = pcd.voxel_down_sample(voxel_size)
+
+        radius_normal = voxel_size * 2
+        # if LOG:
+        #     print("INFO: Estimating normals with search radius %.3f." % radius_normal)
+        pcd_down.estimate_normals(
+            o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
+
+        radius_feature = voxel_size * 5
+        # if LOG:
+        #     print("INFO: Computing FPFH features with search radius %.3f." % radius_feature)
+        pcd_fpfh = o3d.pipelines.registration.compute_fpfh_feature(
+            pcd_down,
+            o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
+        return pcd_down, pcd_fpfh
+
+    def prepare_dataset(self, voxel_size, source, target):
+        """
+        Loads and prepares dataset
+        :param voxel_size: size of voxel to resample
+        :param file1:
+        :param file2:
+        :return: pcds, resampled pcds, features
+        """
+        # if LOG:
+        #     print("INFO: Load two point clouds.")
+        # "./data/data10_points.ply"
+        # "./data/headFace3_geo_low.ply"
+        # source = o3d.io.read_point_cloud(file1)
+        # target = o3d.io.read_point_cloud(file2)
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(source)
+        source = pcd
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(target)
+        target = pcd
+
+        source_down, source_fpfh = self.preprocess_point_cloud(source, voxel_size)
+        target_down, target_fpfh = self.preprocess_point_cloud(target, voxel_size)
+        return source, target, source_down, target_down, source_fpfh, target_fpfh
+
+    def execute_global_registration(self, source_down, target_down, source_fpfh, target_fpfh, voxel_size):
+        """
+        Excecutes global registration using RANSAC
+        :param source_down: resampled pcd
+        :param target_down: resampled pcd
+        :param source_fpfh: features
+        :param target_fpfh: features
+        :param voxel_size: size of voxel
+        :return:
+        """
+        distance_threshold = voxel_size * 0.5
+        # if LOG:
+        #     print("INFO: Launching global registration using RANSAC")
+        result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
+            source_down, target_down, source_fpfh, target_fpfh, True,
+            distance_threshold,
+            o3d.pipelines.registration.TransformationEstimationPointToPoint(False),
+            3, [
+                o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(
+                    0.9),
+                o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(
+                    distance_threshold)
+            ], o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999))
+        return result
+
+    def refine_registration(self, source, target, source_fpfh, target_fpfh, voxel_size, result_ransac, distance_threshold=None):
+        if not distance_threshold:
+            distance_threshold = voxel_size * 0.3
+        # if LOG:
+        #     print("INFO: Running point-to-plane ICP registration")
+        result = o3d.pipelines.registration.registration_icp(
+            source, target, distance_threshold, result_ransac.transformation,
+            o3d.pipelines.registration.TransformationEstimationPointToPoint())
+        return result
+
+
+

@@ -280,6 +280,7 @@ def train(model, trainLoader, valLoader, args):
                 ################CLUSTER################
                 inp = cluster(inp, names)
                 #######################################
+                inp = inp.to(torch.float32).to(device)
                 optimizer.zero_grad()
                 coarse, fine = model(inp)
                 loss1 = chamfer(coarse, gt)
@@ -354,11 +355,11 @@ def testModel(model, testLoader, args):
                 inp = data[1]
                 gt = data[1]
             # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
-            inp = inp.to(torch.float32).to(device)
             gt = gt.to(torch.float32).to(device)
             ################CLUSTER################
             inp = cluster(inp, names)
             #######################################
+            inp = inp.to(torch.float32).to(device)
             optimizer.zero_grad()
             coarse, fine = model(inp)
             loss1 = chamfer(coarse, gt)

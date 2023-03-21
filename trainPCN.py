@@ -110,13 +110,16 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath,
         print_log("------------------Epoch: {}------------------".format(epoch))
         for i, (data, labels, names) in enumerate(tqdm(trainLoader)):
             if args.partial:
-                gt = data[0]
+                inp = data[0]
+                gt = data[1]
             else:
+                inp = data[1]
                 gt = data[1]
             # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
+            inp = inp.to(torch.float32).to(device)
             gt = gt.to(torch.float32).to(device)
             optimizer.zero_grad()
-            coarse, fine = model(gt)
+            coarse, fine = model(inp)
             loss1 = chamfer(coarse, gt)
             loss2 = chamfer(fine, gt)
             loss = loss1 + alpha * loss2
@@ -141,11 +144,17 @@ def train(model, trainLoader, valLoader, epochs, lr, bestSavePath, lastSavePath,
             rand_iter = random.randint(0, len(valLoader) - 1)
 
             for i, (data, labels, names) in enumerate(tqdm(valLoader)):
-                gt = data[1]
+                if args.partial:
+                    inp = data[0]
+                    gt = data[1]
+                else:
+                    inp = data[1]
+                    gt = data[1]
                 # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
+                inp = inp.to(torch.float32).to(device)
                 gt = gt.to(torch.float32).to(device)
                 optimizer.zero_grad()
-                coarse, fine = model(gt)
+                coarse, fine = model(inp)
                 loss1 = chamfer(coarse, gt)
                 loss2 = chamfer(fine, gt)
                 loss = loss1 + alpha * loss2
@@ -199,11 +208,17 @@ def testModel(model, testLoader, testOut, lr, save, args):
     chamfer = ChamferDistanceL1()
     with torch.no_grad():
         for i, (data, labels, names) in enumerate(tqdm(testLoader)):
-            gt = data[0]
+            if args.partial:
+                inp = data[0]
+                gt = data[1]
+            else:
+                inp = data[1]
+                gt = data[1]
             # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
+            inp = inp.to(torch.float32).to(device)
             gt = gt.to(torch.float32).to(device)
             optimizer.zero_grad()
-            coarse, fine = model(gt)
+            coarse, fine = model(inp)
             loss1 = chamfer(coarse, gt)
             loss2 = chamfer(fine, gt)
             loss = loss1 + 0.01 * loss2

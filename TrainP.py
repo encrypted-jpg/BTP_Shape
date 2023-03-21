@@ -187,7 +187,7 @@ def train(model, trainLoader, valLoader, args):
     print_log(log_fd, "Learning Rate: {}".format(optimizer.param_groups[0]['lr']))
     chamfer = ChamferDistanceL1().to(device)
     # knn = kNNLoss(k=15, n_seeds=50)
-    # minLoss = 1e10
+    minLoss = 1e10
     train_step = 0
     model.to(device)
     print("[+] Training Step: {}".format(train_step))

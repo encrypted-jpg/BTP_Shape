@@ -215,13 +215,16 @@ def train(model, trainLoader, valLoader, args):
         print_log(log_fd, "------------------Epoch: {}------------------".format(epoch))
         for i, (data, labels, names) in enumerate(tqdm(trainLoader)):
             if args.partial:
-                gt = data[0]
+                inp = data[0]
+                gt = data[1]
             else:
+                inp = data[1]
                 gt = data[1]
             # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
+            inp = inp.to(torch.float32).to(device)
             gt = gt.to(torch.float32).to(device)
             optimizer.zero_grad()
-            coarse, fine = model(gt)
+            coarse, fine = model(inp)
             loss1 = chamfer(coarse, gt)
             loss2 = chamfer(fine, gt)
             # knnloss = knn(fine)
@@ -256,13 +259,16 @@ def train(model, trainLoader, valLoader, args):
             rand_iter = random.randint(0, len(valLoader) - 1)
             for i, (data, labels, names) in enumerate(tqdm(valLoader)):
                 if args.partial:
-                    gt = data[0]
+                    inp = data[0]
+                    gt = data[1]
                 else:
+                    inp = data[1]
                     gt = data[1]
                 # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
+                inp = inp.to(torch.float32).to(device)
                 gt = gt.to(torch.float32).to(device)
                 optimizer.zero_grad()
-                coarse, fine = model(gt)
+                coarse, fine = model(inp)
                 loss1 = chamfer(coarse, gt)
                 loss2 = chamfer(fine, gt)
                 # knnloss = knn(fine)
@@ -272,8 +278,8 @@ def train(model, trainLoader, valLoader, args):
                 if rand_iter == i:
                     index = random.randint(0, fine.shape[0] - 1)
                     plot_pcd_one_view(os.path.join(epochs_dir, 'epoch_{:03d}.png'.format(epoch)),
-                                      [coarse[index].detach().cpu().numpy(), fine[index].detach().cpu().numpy(), gt[index].detach().cpu().numpy()],
-                                      ['Coarse', 'Dense', 'Ground Truth'], xlim=(-0.5, 1), ylim=(-0.5, 1), zlim=(-0.5, 1))
+                                      [inp[index].detach().cpu().numpy(), coarse[index].detach().cpu().numpy(), fine[index].detach().cpu().numpy(), gt[index].detach().cpu().numpy()],
+                                      ['Input', 'Coarse', 'Dense', 'Ground Truth'], xlim=(-0.5, 1), ylim=(-0.5, 1), zlim=(-0.5, 1))
                     recon =  fine.detach().cpu().numpy()
                     vis.scatter(X=recon[0].reshape(-1, 3), Y=label, win=2,
                                         opts={'title': f"Generated Pointcloud ", 'markersize': 2, 'markercolor': colors, 'webgl': True})
@@ -326,20 +332,23 @@ def testModel(model, testLoader, args):
     with torch.no_grad():
         for i, (data, labels, names) in enumerate(tqdm(testLoader)):
             if args.partial:
-                gt = data[0]
+                inp = data[0]
+                gt = data[1]
             else:
+                inp = data[1]
                 gt = data[1]
             # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
+            inp = inp.to(torch.float32).to(device)
             gt = gt.to(torch.float32).to(device)
             optimizer.zero_grad()
-            coarse, fine = model(gt)
+            coarse, fine = model(inp)
             loss1 = chamfer(coarse, gt)
             loss2 = chamfer(fine, gt)
             # knnloss = knn(fine)
             loss = loss1 * 0.5 + loss2 * 0.50
             test_loss += loss.item()
             if args.testSave:
-                save_pcd(fine.squeeze().detach().cpu().numpy(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(names[0])))
+                save_pcd(fine[0].squeeze().detach().cpu().numpy(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(names[0])))
                 save_pcd(data[0].squeeze(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_partial.pcd".format(names[0])))
                 save_pcd(data[1].squeeze(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_gt.pcd".format(names[0])))
     test_loss /= len(testLoader)

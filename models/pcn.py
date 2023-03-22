@@ -6,6 +6,9 @@ import pickle
 import open3d as o3d
 import copy
 import json
+import sys
+sys.append("..")
+from utils.pc_sample import farthest_point_sample, index_points
 
 
 class PCN(nn.Module):
@@ -270,8 +273,10 @@ class Cluster(nn.Module):
                                                 voxel_size, result_ransac, 0.002)
                 source.transform(result_icp.transformation)
                 transformed_point_clouds.append(source)
-            transformed_point_cloud = torch.from_numpy(np.array([np.array(transformed_point_cloud.points) for transformed_point_cloud in transformed_point_clouds])).to(self.device)
-        return transformed_point_cloud.to(torch.float32)
+            transformed_point_cloud = torch.from_numpy(np.array([np.array(transformed_point_cloud.points) for transformed_point_cloud in transformed_point_clouds])).to(self.device).to(torch.float32)
+        nidx = farthest_point_sample(transformed_point_cloud, 1000, RAN = True)
+        npcs = index_points(transformed_point_cloud, nidx)
+        return npcs.to(torch.float32)
 
     def load_clusters(self, path):
         modelDict = pickle.load(open(path, "rb"))

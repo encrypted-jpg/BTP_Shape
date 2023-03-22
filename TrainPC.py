@@ -17,6 +17,7 @@ from tqdm import tqdm
 import time
 import datetime
 from utils.visual import plot_pcd_one_view
+from utils.pc_sample import farthest_point_sample, index_points
 import random
 import visdom
 from knn import kNNLoss

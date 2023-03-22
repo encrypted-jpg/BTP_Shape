@@ -229,7 +229,7 @@ class Cluster(nn.Module):
         
         assert chamfer_dist != None, "[-] Chamfer Distance is None"
         
-        self.chamfer_dist = chamfer_dist
+        self.chamfer_dist = ChamferDistanceL1()
         self.jsonPath = jsonPath
         self.json = None
         if self.jsonPath is not None:
@@ -238,6 +238,7 @@ class Cluster(nn.Module):
         self.device = device
         self.model.to(self.device)
         self.model.eval()
+        self.reg_failed_count = 0
 
     def forward(self, pc, idx=None):
         temp_found = False
@@ -263,7 +264,10 @@ class Cluster(nn.Module):
                 template_point_cloud = temp
             
             voxel_size = 5
+            self.reg_failed_count = 0
             transformed_point_clouds = []
+            npcs = []
+            targets = []
             for i in range(source_point_cloud.shape[0]):
                 source, target, source_down, target_down, source_fpfh, target_fpfh = self.prepare_dataset(voxel_size, source_point_cloud[i].reshape(-1, 3), template_point_cloud[i].reshape(-1, 3))
                 result_ransac = self.execute_global_registration(source_down, target_down,
@@ -271,12 +275,32 @@ class Cluster(nn.Module):
                                                             voxel_size)
                 result_icp = self.refine_registration(source, target, source_fpfh, target_fpfh,
                                                 voxel_size, result_ransac, 0.002)
+                original = copy.deepcopy(source)
                 source.transform(result_icp.transformation)
-                transformed_point_clouds.append(source)
-            transformed_point_cloud = torch.from_numpy(np.array([np.array(transformed_point_cloud.points) for transformed_point_cloud in transformed_point_clouds])).to(self.device).to(torch.float32)
+                original = torch.from_numpy(np.array(original.points)).to(torch.float32).detach().requires_grad_(False)
+                source = torch.from_numpy(np.array(source.points)).to(torch.float32).detach().requires_grad_(False)
+                target = torch.from_numpy(np.array(target.points)).to(torch.float32).detach().requires_grad_(False)
+                newPc = torch.from_numpy(np.concatenate((source, target), axis=0)).to(torch.float32).detach().requires_grad_(False)
+                originalPc = torch.from_numpy(np.concatenate((original, target), axis=0)).to(torch.float32).detach().requires_grad_(False)
+                targets.append(target)
+                npcs.append(newPc)
+                transformed_point_clouds.append(self.getBest(original.reshape(1, -1, 3), originalPc.reshape(1, -1, 3), newPc.reshape(1, -1, 3)))
+                # transformed_point_clouds.append(newPc)
+            transformed_point_cloud = torch.cat([transformed_point_cloud.reshape(1, -1, 3) for transformed_point_cloud in transformed_point_clouds], axis=0).to(self.device).to(torch.float32)
         nidx = farthest_point_sample(transformed_point_cloud, 1000, RAN = True)
-        npcs = index_points(transformed_point_cloud, nidx)
-        return npcs.to(torch.float32)
+        transformed_point_cloud = index_points(transformed_point_cloud, nidx)
+        return transformed_point_cloud.to(torch.float32), template_point_cloud, targets, npcs
+    
+    def getBest(self, source, target, newPc):
+        with torch.no_grad():
+            dist1 = self.chamfer_dist(source.detach().cuda(device=0), target.detach().cuda(device=0))
+            dist2 = self.chamfer_dist(source.detach().cuda(device=0), newPc.detach().cuda(device=0))
+            if dist1.item() < dist2.item():
+                self.reg_failed_count += 1
+                return target
+            else:
+                # print("[+] Reg Success")
+                return newPc
 
     def load_clusters(self, path):
         modelDict = pickle.load(open(path, "rb"))

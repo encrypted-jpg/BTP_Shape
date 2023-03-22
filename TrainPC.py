@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
 import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 import open3d as o3d
 import argparse
 import json
@@ -170,6 +171,7 @@ def train(model, trainLoader, valLoader, args):
     lastSavePath = os.path.join(args.savePath, "lastModel.pth")
     dirPath = os.path.dirname(bestSavePath)
     ckpt_dir, epochs_dir, log_fd, train_writer, val_writer = prepare_logger(dirPath)
+    print_log(log_fd, str(args))
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=0)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma)
     device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
@@ -179,7 +181,7 @@ def train(model, trainLoader, valLoader, args):
     chamfer = ChamferDistanceL1().to(device)
 
     #############CLUSTER##########
-    cluster = Cluster(args.pcnModelPath, args.clusterPath, chamfer, 6144, 1024, 4, device=device, jsonPath=args.clusterJson)
+    cluster = Cluster(args.pcnModelPath, args.clusterPath, chamfer, 6144, 1024, 4, device=device, jsonPath=args.clusterJson).cuda(device=args.gpu)
     ##############################
 
     minLossEpoch = 0
@@ -231,9 +233,8 @@ def train(model, trainLoader, valLoader, args):
             inp = inp.to(torch.float32).to(device)
             gt = gt.to(torch.float32).to(device)
             ################CLUSTER################
-            inp = cluster(inp, names)
+            # inp, temp, targets, npcs = cluster(inp, names)
             #######################################
-            inp = inp.to(torch.float32).to(device)
             optimizer.zero_grad()
             coarse, fine = model(inp)
             loss1 = chamfer(coarse, gt)
@@ -249,7 +250,13 @@ def train(model, trainLoader, valLoader, args):
             train_writer.add_scalar('coarse', loss1.item(), train_step)
             train_writer.add_scalar('dense', loss2.item(), train_step)
             train_step += 1
-            if train_step % 30 == 0:
+            if train_step % 100 == 0:
+                if args.testSave:
+                    save_pcd(fine[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(os.path.basename(names[0]))))
+                    save_pcd(data[0][0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_partial.pcd".format(os.path.basename(names[0]))))
+                    save_pcd(inp[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_reg.pcd".format(os.path.basename(names[0]))))
+                    # save_pcd(temp[0].reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_temp.pcd".format(os.path.basename(names[0]))))
+                    save_pcd(gt[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_gt.pcd".format(os.path.basename(names[0]))))
                 recon =  fine.detach().cpu().numpy()
                 plot_X = np.stack([np.arange(len(loss_log['train']))], 1)
                 plot_Y = np.stack([np.array(loss_log['train'])], 1)
@@ -279,7 +286,7 @@ def train(model, trainLoader, valLoader, args):
                 inp = inp.to(torch.float32).to(device)
                 gt = gt.to(torch.float32).to(device)
                 ################CLUSTER################
-                inp = cluster(inp, names)
+                # inp, temp = cluster(inp, names)
                 #######################################
                 inp = inp.to(torch.float32).to(device)
                 optimizer.zero_grad()
@@ -358,7 +365,7 @@ def testModel(model, testLoader, args):
             # gt = torch.Tensor(gt).transpose(2, 1).float().to(device)
             gt = gt.to(torch.float32).to(device)
             ################CLUSTER################
-            inp = cluster(inp, names)
+            # inp, temp = cluster(inp, names)
             #######################################
             inp = inp.to(torch.float32).to(device)
             optimizer.zero_grad()
@@ -369,9 +376,11 @@ def testModel(model, testLoader, args):
             loss = loss1 * 0.5 + loss2 * 0.50
             test_loss += loss.item()
             if args.testSave:
-                save_pcd(fine[0].squeeze().detach().cpu().numpy(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(names[0])))
-                save_pcd(data[0].squeeze(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_partial.pcd".format(names[0])))
-                save_pcd(data[1].squeeze(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_gt.pcd".format(names[0])))
+                save_pcd(fine[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(os.path.basename(names[0]))))
+                save_pcd(data[0][0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_partial.pcd".format(os.path.basename(names[0]))))
+                save_pcd(inp[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_reg.pcd".format(os.path.basename(names[0]))))
+                # save_pcd(temp[0].reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_temp.pcd".format(os.path.basename(names[0]))))
+                save_pcd(gt[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_gt.pcd".format(os.path.basename(names[0]))))
     test_loss /= len(testLoader)
     end = time.time()
     print("[+] Test Loss: {}, Time: {}".format(test_loss, end-start))

@@ -7,7 +7,7 @@ import open3d as o3d
 import copy
 import json
 import sys
-sys.append("..")
+sys.path.append("..")
 from utils.pc_sample import farthest_point_sample, index_points
 
 

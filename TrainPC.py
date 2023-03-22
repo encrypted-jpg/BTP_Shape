@@ -249,7 +249,7 @@ def train(model, trainLoader, valLoader, args):
             train_writer.add_scalar('coarse', loss1.item(), train_step)
             train_writer.add_scalar('dense', loss2.item(), train_step)
             train_step += 1
-            if train_step % min(100, len(trainLoader)//3) == 0:
+            if train_step % 30 == 0:
                 recon =  fine.detach().cpu().numpy()
                 plot_X = np.stack([np.arange(len(loss_log['train']))], 1)
                 plot_Y = np.stack([np.array(loss_log['train'])], 1)

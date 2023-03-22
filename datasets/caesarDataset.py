@@ -64,6 +64,7 @@ class CaesarDataset(Dataset):
         gt = o3d.io.read_point_cloud(self.gts[idx])
         gt_points = np.asarray(gt.points)
         gt_points = gt_points[np.random.choice(gt_points.shape[0], self.gt_num_points, replace=False), :]
+        name = self.partial[idx][self.partial[idx].find("caesar"):]
         if len(self.cache) < self.cacheLen:
-            self.cache[idx] = (points, gt_points), np.array([self.labels[idx]]), self.partial[idx].replace(".pcd", "")
-        return (points, gt_points), np.array([self.labels[idx]]), self.partial[idx].replace(".pcd", "")
+            self.cache[idx] = (points, gt_points), np.array([self.labels[idx]]), name.replace(".pcd", "")
+        return (points, gt_points), np.array([self.labels[idx]]), name.replace(".pcd", "")

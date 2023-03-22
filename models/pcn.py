@@ -243,11 +243,12 @@ class Cluster(nn.Module):
             err = False
             for k in range(pc.shape[0]):
                 try:
-                    i, j = self.json[idx[k]]
+                    key = idx[k].replace("\\", "/")
+                    i, j = self.json[key]
                     pclist.append(np.array(self.top5pcs[i][j]))
                 except KeyError:
                     err = True
-                    print("[-] Error in JSON with Key: ", idx[k])
+                    print("[-] Error in JSON with Key: ", key)
             if not err:
                 temp_found = True
                 temp = np.array(pclist)

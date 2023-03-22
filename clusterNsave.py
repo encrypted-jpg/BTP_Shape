@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument('--json' , type=str, default='data.json')
     parser.add_argument('--batch_size', type=int, default=100, help='batch size')
     parser.add_argument('--pcnModelPath', type=str, default='checkpoints/caesarBestModel.pth', help='path to pcn model')
-    parser.add_argument('--clusterPath', type=str, default='checkpoints/caesarModelDict1000.pkl', help='path to cluster model')
+    parser.add_argument('--clusterPath', type=str, default='checkpoints/caesarModelDict384.pkl', help='path to cluster model')
     return parser.parse_args()
 
 def dataLoaders(args):
@@ -56,7 +56,7 @@ def main():
         par = par.cuda()
         pred = cluster.getIdx(par)
         for j in range(len(pred)):
-            pdict[names[j]] = pred[j]
+            pdict[str(names[j]).replace("\\", "/")] = pred[j]
             # print(names[j], pdict[names[j]])
     
     for i, (data, labels, names) in enumerate(tqdm(testLoader)):
@@ -64,7 +64,7 @@ def main():
         par = par.cuda()
         pred = cluster.getIdx(par)
         for j in range(len(pred)):
-            pdict[names[j]] = pred[j]
+            pdict[str(names[j]).replace("\\", "/")] = pred[j]
             # print(names[j], pdict[names[j]])
     
     for i, (data, labels, names) in enumerate(tqdm(valLoader)):
@@ -72,7 +72,7 @@ def main():
         par = par.cuda()
         pred = cluster.getIdx(par)
         for j in range(len(pred)):
-            pdict[names[j]] = pred[j]
+            pdict[str(names[j]).replace("\\", "/")] = pred[j]
             # print(names[j], pdict[names[j]])
     
     with open("caesar_cluster.json", "w") as f:

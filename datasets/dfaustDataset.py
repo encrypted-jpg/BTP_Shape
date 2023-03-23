@@ -18,7 +18,9 @@ class DFaustDataset(Dataset):
         jfolder = folder
         if "D-Faust" not in folder:
             jfolder = os.path.join(folder, "D-Faust")
-        else:
+        elif "D-Faust-Reg" in folder:
+            folder = folder.replace("D-Faust-Reg", "")
+        elif "D-Faust" in folder:
             folder = folder.replace("D-Faust", "")
         with open(os.path.join(jfolder, jsonFile), 'r') as f:
             data = json.load(f)

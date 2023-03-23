@@ -15,11 +15,11 @@ from tqdm import tqdm
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Point Cloud Completion Clustering')
-    parser.add_argument('--folder', type=str, default='caesar-fitted-meshes-pcd', help='dfaust, caesar, scape')
+    parser.add_argument('--folder', type=str, default='D-Faust', help='dfaust, caesar, scape')
     parser.add_argument('--json' , type=str, default='data.json')
     parser.add_argument('--batch_size', type=int, default=100, help='batch size')
-    parser.add_argument('--pcnModelPath', type=str, default='checkpoints/caesarBestModel.pth', help='path to pcn model')
-    parser.add_argument('--clusterPath', type=str, default='checkpoints/caesarModelDict384.pkl', help='path to cluster model')
+    parser.add_argument('--pcnModelPath', type=str, default='checkpoints/DFaustBestModel.pth', help='path to pcn model')
+    parser.add_argument('--clusterPath', type=str, default='checkpoints/DFaustModelDict384.pkl', help='path to cluster model')
     return parser.parse_args()
 
 def dataLoaders(args):
@@ -58,6 +58,8 @@ def main():
         for j in range(len(pred)):
             pdict[str(names[j]).replace("\\", "/")] = pred[j]
             # print(names[j], pdict[names[j]])
+    with open("caesar_cluster.json", "w") as f:
+        json.dump(pdict, f, indent=4)
     
     for i, (data, labels, names) in enumerate(tqdm(testLoader)):
         par, gt = data
@@ -66,6 +68,8 @@ def main():
         for j in range(len(pred)):
             pdict[str(names[j]).replace("\\", "/")] = pred[j]
             # print(names[j], pdict[names[j]])
+    with open("caesar_cluster.json", "w") as f:
+        json.dump(pdict, f, indent=4)
     
     for i, (data, labels, names) in enumerate(tqdm(valLoader)):
         par, gt = data

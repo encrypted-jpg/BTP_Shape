@@ -181,7 +181,7 @@ def train(model, trainLoader, valLoader, args):
     chamfer = ChamferDistanceL1().to(device)
 
     #############CLUSTER##########
-    cluster = Cluster(args.pcnModelPath, args.clusterPath, chamfer, 6144, 1024, 4, device=device, jsonPath=args.clusterJson).cuda(device=args.gpu)
+    # cluster = Cluster(args.pcnModelPath, args.clusterPath, chamfer, 6144, 1024, 4, device=device, jsonPath=args.clusterJson).cuda(device=args.gpu)
     ##############################
 
     minLossEpoch = 0
@@ -351,7 +351,7 @@ def testModel(model, testLoader, args):
     start = time.time()
     chamfer = ChamferDistanceL1()
     #############CLUSTER##########
-    cluster = Cluster(args.pcnModelPath, args.clusterPath, chamfer, 6144, 1024, 4, device=device, jsonPath=args.clusterJson)
+    # cluster = Cluster(args.pcnModelPath, args.clusterPath, chamfer, 6144, 1024, 4, device=device, jsonPath=args.clusterJson)
     ##############################
     # knn = kNNLoss(k=15, n_seeds=50)
     with torch.no_grad():

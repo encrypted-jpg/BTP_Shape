@@ -180,7 +180,7 @@ def train(model, trainLoader, valLoader, args):
     print_log(log_fd, "Visdom Connection: {}".format(vis.check_connection()))
     
     chamfer = ChamferDistanceL1().to(device)
-    densityChamfer = DCD().to(device)
+    densityChamfer = DCD(alpha=50).to(device)
 
     #############CLUSTER##########
     # cluster = Cluster(args.pcnModelPath, args.clusterPath, chamfer, 6144, 1024, 4, device=device, jsonPath=args.clusterJson).cuda(device=args.gpu)

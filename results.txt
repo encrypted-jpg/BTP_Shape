@@ -1,0 +1,26 @@
+ ==> Dataset: caesar, Type: GTvsGT
+ ==> [+] Loading Model from: caesarGTvsGT\bestModel174.pth
+ ==> [+] Model Statistics - Epoch: 12, Loss: 77.76840253629618
+ ==> Dataset: caesar, Type: PvsGT
+ ==> [+] Loading Model from: caesarPvsGT\bestModel43.pth
+ ==> [+] Model Statistics - Epoch: 43, Loss: 150.8204010718992
+ ==> Dataset: caesar, Type: RegvsGT
+ ==> [+] Loading Model from: caesarRegvsGT\bestModel15.pth
+ ==> [+] Model Statistics - Epoch: 15, Loss: 103.70468962247725
+ ==> Dataset: caesar, Type: RegvsGTDCD
+ ==> [+] Loading Model from: caesarRegvsGTDCD\bestModel.pth
+ ==> [+] Model Statistics - Epoch: 24, Loss: 96.97313351487671
+ ==> =============================
+ ==> Dataset: dfaust, Type: GTvsGT
+ ==> [+] Loading Model from: dfaustGTvsGT\bestModel23.pth
+ ==> [+] Model Statistics - Epoch: 14, Loss: 132.90850473428839
+ ==> Dataset: dfaust, Type: PvsGT
+ ==> [+] Loading Model from: dfaustPvsGT\bestModel33.pth
+ ==> [+] Model Statistics - Epoch: 33, Loss: 199.3126082998603
+ ==> Dataset: dfaust, Type: RegvsGT
+ ==> [+] Loading Model from: dfaustRegvsGT\bestModel.pth
+ ==> [+] Model Statistics - Epoch: 11, Loss: 178.1721207410542
+ ==> Dataset: dfaust, Type: RegvsGTDCD
+ ==> [+] Loading Model from: dfaustRegvsGTDCD\bestModel.pth
+ ==> [+] Model Statistics - Epoch: 17, Loss: 181.2785777694254
+ ==> =============================

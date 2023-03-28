@@ -348,9 +348,9 @@ def testModel(model, testLoader, args):
             loss = loss1 * 0.5 + loss2 * 0.50
             test_loss += loss.item()
             if args.testSave:
-                save_pcd(fine[0].squeeze().detach().cpu().numpy(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(names[0])))
-                save_pcd(data[0].squeeze(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_partial.pcd".format(names[0])))
-                save_pcd(data[1].squeeze(), os.path.join(os.path.join(args.savePath, args.testOut), "{}_gt.pcd".format(names[0])))
+                save_pcd(fine[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(os.path.basename(names[0]))))
+                save_pcd(data[0].reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_partial.pcd".format(os.path.basename(names[0]))))
+                save_pcd(data[1].reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_gt.pcd".format(os.path.basename(names[0]))))
     test_loss /= len(testLoader)
     end = time.time()
     print("[+] Test Loss: {}, Time: {}".format(test_loss, end-start))

@@ -22,5 +22,5 @@
  ==> [+] Model Statistics - Epoch: 11, Loss: 178.1721207410542
  ==> Dataset: dfaust, Type: RegvsGTDCD
  ==> [+] Loading Model from: dfaustRegvsGTDCD\bestModel.pth
- ==> [+] Model Statistics - Epoch: 17, Loss: 181.2785777694254
+ ==> [+] Model Statistics - Epoch: 39, Loss: 177.77885379853535
  ==> =============================

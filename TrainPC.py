@@ -378,7 +378,7 @@ def testModel(model, testLoader, args):
             if args.testSave:
                 save_pcd(fine[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(os.path.basename(names[0]))))
                 save_pcd(data[0][0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_partial.pcd".format(os.path.basename(names[0]))))
-                save_pcd(inp[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_reg.pcd".format(os.path.basename(names[0]))))
+                # save_pcd(inp[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_reg.pcd".format(os.path.basename(names[0]))))
                 # save_pcd(temp[0].reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_temp.pcd".format(os.path.basename(names[0]))))
                 save_pcd(gt[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_gt.pcd".format(os.path.basename(names[0]))))
     test_loss /= len(testLoader)

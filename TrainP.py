@@ -167,6 +167,7 @@ def train(model, trainLoader, valLoader, args):
     lastSavePath = os.path.join(args.savePath, "lastModel.pth")
     dirPath = os.path.dirname(bestSavePath)
     ckpt_dir, epochs_dir, log_fd, train_writer, val_writer = prepare_logger(dirPath)
+    print_log(log_fd, str(args))
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=0)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma)
     device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")

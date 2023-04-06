@@ -28,7 +28,7 @@ def genPartialWithKCenters(pcdfile, num_centers=15, k=100, partialfile=None):
         idx = np.concatenate((idx, idx2))
     idx = np.unique(idx)
     points = np.delete(points, idx, axis=0)
-    points = points[np.random.choice(points.shape[0], 1024, replace=False), :]
+    points = points[np.random.choice(points.shape[0], 1000, replace=False), :]
     pcd.points = o3d.utility.Vector3dVector(points)
     o3d.io.write_point_cloud(partialfile, pcd)
 

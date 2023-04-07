@@ -1,0 +1,4 @@
+[+] Loading the data...
+[+] Loading Model from: dfaustRegvsGTDCD/bestModel.pth
+[+] Model Statistics - Epoch: 25, Loss: 0.017530912422199747
+[+] Test Loss: 0.019198465170096848, Time: 8.58655595779419

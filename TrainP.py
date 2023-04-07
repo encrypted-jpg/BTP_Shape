@@ -349,9 +349,12 @@ def testModel(model, testLoader, args):
             loss = loss1 * 0.5 + loss2 * 0.50
             test_loss += loss.item()
             if args.testSave:
-                save_pcd(fine[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(os.path.basename(names[0]))))
-                save_pcd(data[0].reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_partial.pcd".format(os.path.basename(names[0]))))
-                save_pcd(data[1].reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_gt.pcd".format(os.path.basename(names[0]))))
+                name = os.path.basename(names[0])
+                cat_name = names[0].split("/")[-2]
+                name = "{}_{}".format(cat_name, name)
+                save_pcd(fine[0].detach().cpu().numpy().reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_fine.pcd".format(name)))
+                save_pcd(data[0].reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_partial.pcd".format(name)))
+                save_pcd(data[1].reshape(-1, 3), os.path.join(os.path.join(args.savePath, args.testOut), "{}_gt.pcd".format(name)))
     test_loss /= len(testLoader)
     end = time.time()
     print("[+] Test Loss: {}, Time: {}".format(test_loss, end-start))
